@@ -11,7 +11,6 @@ Table of Contents
     Tasks Description
     Functions Description
     Notes Detection
-    License
 
 Hardware Requirements
 
