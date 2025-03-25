@@ -25,7 +25,7 @@ Software Requirements
     ESP32 board support in Arduino IDE
     Required libraries:
         driver/i2s.h
-        arduinoFFT.h
+        arduinoFFT.h (arduinoFFT 1.6.2 should be installed as the latest pre-2.0-version of the library)
         math.h
 
 Installation
