@@ -26,6 +26,7 @@ double SF1[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
 
 TaskHandle_t audioReadingTask;
 TaskHandle_t audioProcessingTask;
+SemaphoreHandle_t audioDataReady;
 
 void setup() {
   Serial.begin(115200);
@@ -33,6 +34,8 @@ void setup() {
   initI2S();
   calcSF1();
   Serial.println(SF1[4]);
+
+  audioDataReady = xSemaphoreCreateBinary();
 
   xTaskCreatePinnedToCore(ReadingTask,"audio_reading",4096,NULL,1,&audioReadingTask,0);
 
@@ -107,6 +110,7 @@ void ReadingTask(void* parameter)
     {
       memcpy(audioPlaceHolder, local, sizeof(int32_t) * bufferLen);
       localIdx = 0;
+      xSemaphoreGive(audioDataReady);
     }
   }
 }
@@ -117,24 +121,28 @@ void ProcessingTask(void* parameter)
 {
   for (;;)
   {
-    for (size_t i = 0; i < bufferLen; i++) {
-      int32_t sample = audioPlaceHolder[i];
-      vReal[i] = sample;
-      vImag[i] = 0;
-    }
-  
-    // Perform FFT 
-    FFT.DCRemoval();
-    FFT.Windowing(vReal, FFT_SAMPLE, FFT_WIN_TYP_HAMMING, FFT_FORWARD);
-    FFT.Compute(vReal,vImag, FFT_SAMPLE,FFT_FORWARD);
-    FFT.ComplexToMagnitude(vReal, vImag, FFT_SAMPLE);
+    // Wait for new audio data
+    if (xSemaphoreTake(audioDataReady, portMAX_DELAY) == pdTRUE)
+    {
+      for (size_t i = 0; i < bufferLen; i++) {
+        int32_t sample = audioPlaceHolder[i];
+        vReal[i] = sample;
+        vImag[i] = 0;
+      }
+    
+      // Perform FFT 
+      FFT.DCRemoval();
+      FFT.Windowing(vReal, FFT_SAMPLE, FFT_WIN_TYP_HAMMING, FFT_FORWARD);
+      FFT.Compute(vReal,vImag, FFT_SAMPLE,FFT_FORWARD);
+      FFT.ComplexToMagnitude(vReal, vImag, FFT_SAMPLE);
 
-    // Find the major peak frequency within FFT Results
-    double peak = FFT.MajorPeak(vReal, FFT_SAMPLE,SAMPLING_FREQUENCY);
+      // Find the major peak frequency within FFT Results
+      double peak = FFT.MajorPeak(vReal, FFT_SAMPLE,SAMPLING_FREQUENCY);
 
-    // Only process peak if the note is between E2 and A4
-    if (peak > 75 && peak <= 440) {
-      noteDetection(peak);
+      // Only process peak if the note is between E2 and A4
+      if (peak > 75 && peak <= 440) {
+        noteDetection(peak);
+      }
     }
   }
 }
